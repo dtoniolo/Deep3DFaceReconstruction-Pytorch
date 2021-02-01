@@ -1,14 +1,21 @@
-import torch
-from scipy.io import loadmat, savemat
+from pathlib import Path
 from array import array
 import numpy as np
+from scipy.io import loadmat, savemat
 from PIL import Image
+import torch
+import D3DFM
+
+
+d3dfm_path = Path(list(D3DFM.__path__)[0])
+bfm_path = d3dfm_path / 'BFM'
 
 
 class BFM(object):
     # BFM 3D face model
-    def __init__(self, model_path='BFM/BFM_model_front.mat', device='cpu'):
-        model = loadmat(model_path)
+    def __init__(self, model_path=bfm_path/'BFM_model_front.mat',
+                 device='cpu'):
+        model = loadmat(str(model_path))
         # mean face shape. [3*N,1]
         self.meanshape = torch.from_numpy(model['meanshape'])
         # identity basis. [3*N,80]
@@ -34,15 +41,20 @@ class BFM(object):
         self.meantex = self.meantex.to(device)
         self.texBase = self.texBase.to(device)
 
-    def load_lm3d(self, fsimilarity_Lm3D_all_mat='BFM/similarity_Lm3D_all.mat'):
-        # load landmarks for standard face, which is used for image preprocessing
-        Lm3D = loadmat(fsimilarity_Lm3D_all_mat)
+    def load_lm3d(self, fsimilarity_Lm3D_all_mat=bfm_path /
+                  'similarity_Lm3D_all.mat'):
+        # load landmarks for standard face, which is used for image
+        # preprocessing
+        Lm3D = loadmat(str(fsimilarity_Lm3D_all_mat))
         Lm3D = Lm3D['lm']
 
         # calculate 5 facial landmarks using 68 landmarks
         lm_idx = np.array([31, 37, 40, 43, 46, 49, 55]) - 1
-        Lm3D = np.stack([Lm3D[lm_idx[0], :], np.mean(Lm3D[lm_idx[[1, 2]], :], 0), np.mean(
-            Lm3D[lm_idx[[3, 4]], :], 0), Lm3D[lm_idx[5], :], Lm3D[lm_idx[6], :]], axis=0)
+        Lm3D = np.stack([Lm3D[lm_idx[0], :],
+                         np.mean(Lm3D[lm_idx[[1, 2]], :], 0),
+                         np.mean(Lm3D[lm_idx[[3, 4]], :], 0),
+                         Lm3D[lm_idx[5], :],
+                         Lm3D[lm_idx[6], :]], axis=0)
         Lm3D = Lm3D[[1, 2, 0, 3, 4], :]
         self.Lm3D = Lm3D
         return Lm3D
@@ -51,7 +63,7 @@ class BFM(object):
 def load_expbasis():
     # load expression basis
     n_vertex = 53215
-    exp_bin = open(r'BFM\Exp_Pca.bin', 'rb')
+    exp_bin = open(bfm_path / 'Exp_Pca.bin', 'rb')
     exp_dim = array('i')
     exp_dim.fromfile(exp_bin, 1)
     expMU = array('f')
@@ -63,14 +75,14 @@ def load_expbasis():
     expPC = np.reshape(expPC, [exp_dim[0], -1])
     expPC = np.transpose(expPC)
 
-    expEV = np.loadtxt(r'BFM\std_exp.txt')
+    expEV = np.loadtxt(bfm_path / 'std_exp.txt')
 
     return expPC, expEV
 
 
 def transfer_BFM09():
     # tranfer original BFM2009 to target face model
-    original_BFM = loadmat(r'BFM\01_MorphableModel.mat')
+    original_BFM = loadmat(str(bfm_path / '01_MorphableModel.mat'))
     shapePC = original_BFM['shapePC']   # shape basis
     shapeEV = original_BFM['shapeEV']   # corresponding eigen values
     shapeMU = original_BFM['shapeMU']   # mean face
@@ -91,14 +103,16 @@ def transfer_BFM09():
     texBase = texPC*np.reshape(texEV, [-1, 199])
     texBase = texBase[:, :80]  # use only first 80 basis
 
-    # our face model is cropped align face landmarks which contains only 35709 vertex.
-    # original BFM09 contains 53490 vertex, and expression basis provided by JuYong contains 53215 vertex.
+    # our face model is cropped align face landmarks which contains only 35709
+    # vertex.
+    # original BFM09 contains 53490 vertex, and expression basis provided by
+    # JuYong contains 53215 vertex.
     # thus we select corresponding vertex to get our face model.
-    index_exp = loadmat('BFM/BFM_front_idx.mat')
+    index_exp = loadmat(str(bfm_path / 'BFM_front_idx.mat'))
     index_exp = index_exp['idx'].astype(
         np.int32) - 1  # starts from 0 (to 53215)
 
-    index_shape = loadmat('BFM/BFM_exp_idx.mat')
+    index_shape = loadmat(str(bfm_path / 'BFM_exp_idx.mat'))
     index_shape = index_shape['trimIndex'].astype(
         np.int32) - 1  # starts from 0 (to 53490)
     index_shape = index_shape[index_exp]
@@ -125,7 +139,7 @@ def transfer_BFM09():
 
     # other info contains triangles, region used for computing photometric loss,
     # region used for skin texture regularization, and 68 landmarks index etc.
-    other_info = loadmat('BFM/facemodel_info.mat')
+    other_info = loadmat(str(bfm_path / 'facemodel_info.mat'))
     frontmask2_idx = other_info['frontmask2_idx']
     skinmask = other_info['skinmask']
     keypoints = other_info['keypoints']
@@ -134,8 +148,12 @@ def transfer_BFM09():
     tri_mask2 = other_info['tri_mask2']
 
     # save our face model
-    savemat('BFM/BFM_model_front.mat', {'meanshape': meanshape, 'meantex': meantex, 'idBase': idBase, 'exBase': exBase, 'texBase': texBase,
-                                        'tri': tri, 'point_buf': point_buf, 'tri_mask2': tri_mask2, 'keypoints': keypoints, 'frontmask2_idx': frontmask2_idx, 'skinmask': skinmask})
+    savemat(str(bfm_path / 'BFM_model_front.mat'),
+            {'meanshape': meanshape,
+             'meantex': meantex, 'idBase': idBase, 'exBase': exBase,
+             'texBase': texBase, 'tri': tri, 'point_buf': point_buf,
+             'tri_mask2': tri_mask2, 'keypoints': keypoints,
+             'frontmask2_idx': frontmask2_idx, 'skinmask': skinmask})
 
 
 # calculating least sqaures problem
