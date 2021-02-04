@@ -4,11 +4,10 @@ import numpy as np
 from scipy.io import loadmat, savemat
 from PIL import Image
 import torch
-import D3DFM
 
 
-d3dfm_path = Path(list(D3DFM.__path__)[0])
-bfm_path = d3dfm_path / 'BFM'
+d3dfr_path = Path(__file__).parent
+bfm_path = d3dfr_path / 'BFM'
 
 
 class BFM(object):
