@@ -28,7 +28,7 @@ def recon():
     lm3D = bfm.load_lm3d()
 
     model = resnet50_use().to(device)
-    model.load_state_dict(torch.load(r'models\params.pt'))
+    model.load_state_dict(torch.load('models/params.pt'))
     model.eval()
 
     for param in model.parameters():
